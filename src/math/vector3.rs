@@ -104,11 +104,31 @@ impl ops::Add for Vector3 {
     }
 }
 
+impl ops::AddAssign for Vector3 {
+    fn add_assign(&mut self, rhs: Vector3) {
+        *self = Vector3::new(
+            self.e[0] + rhs.e[0],
+            self.e[1] + rhs.e[1],
+            self.e[2] + rhs.e[2],
+        )
+    }
+}
+
 impl ops::Sub for Vector3 {
     type Output = Vector3;
 
     fn sub(self, rhs: Vector3) -> Vector3 {
         Vector3::new(
+            self.e[0] - rhs.e[0],
+            self.e[1] - rhs.e[1],
+            self.e[2] - rhs.e[2],
+        )
+    }
+}
+
+impl ops::SubAssign for Vector3 {
+    fn sub_assign(&mut self, rhs: Vector3) {
+        *self = Vector3::new(
             self.e[0] - rhs.e[0],
             self.e[1] - rhs.e[1],
             self.e[2] - rhs.e[2],
@@ -128,11 +148,31 @@ impl ops::Div for Vector3 {
     }
 }
 
+impl ops::DivAssign for Vector3 {
+    fn div_assign(&mut self, rhs: Vector3) {
+        *self = Vector3::new(
+            self.e[0] / rhs.e[0],
+            self.e[1] / rhs.e[1],
+            self.e[2] / rhs.e[2],
+        )
+    }
+}
+
 impl ops::Div<f32> for Vector3 {
     type Output = Vector3;
 
     fn div(self, rhs: f32) -> Vector3 {
         Vector3::new(
+            self.e[0] / rhs,
+            self.e[1] / rhs,
+            self.e[2] / rhs,
+        )
+    }
+}
+
+impl ops::DivAssign<f32> for Vector3 {
+    fn div_assign(&mut self, rhs: f32) {
+        *self = Vector3::new(
             self.e[0] / rhs,
             self.e[1] / rhs,
             self.e[2] / rhs,
@@ -164,11 +204,31 @@ impl ops::Mul for Vector3 {
     }
 }
 
+impl ops::MulAssign for Vector3 {
+    fn mul_assign(&mut self, rhs: Vector3) {
+        *self = Vector3::new(
+            self.e[0] * rhs.e[0],
+            self.e[1] * rhs.e[1],
+            self.e[2] * rhs.e[2],
+        )
+    }
+}
+
 impl ops::Mul<f32> for Vector3 {
     type Output = Vector3;
 
     fn mul(self, rhs: f32) -> Vector3 {
         Vector3::new(
+            self.e[0] * rhs,
+            self.e[1] * rhs,
+            self.e[2] * rhs,
+        )
+    }
+}
+
+impl ops::MulAssign<f32> for Vector3 {
+    fn mul_assign(&mut self, rhs: f32) {
+        *self = Vector3::new(
             self.e[0] * rhs,
             self.e[1] * rhs,
             self.e[2] * rhs,

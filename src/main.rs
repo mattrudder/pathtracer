@@ -73,7 +73,7 @@ impl RayHitable for Scene {
 }
 
 fn color<T: RayHitable, R: Rng>(r: Ray, item: &T, rng: &mut R) -> Vector3 {
-    if let Some(hit) = item.ray_hit(r, 0.0, std::f32::MAX) {
+    if let Some(hit) = item.ray_hit(r, 0.001, std::f32::MAX) {
         let target = hit.point + hit.normal + Vector3::random(rng);
         0.5 * color(Ray::new(hit.point, target - hit.point), item, rng)
     } else {
@@ -90,7 +90,7 @@ fn main() {
                                  WIDTH,
                                  HEIGHT,
                                  WindowOptions {
-                                     scale: Scale::X4,
+                                     scale: Scale::X2,
                                     .. Default::default()
                                  }).unwrap_or_else(|e| { panic!("{}", e); });
 
@@ -104,7 +104,6 @@ fn main() {
     let cam = Camera::new();
 
     let seed = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
-
 
     let mut last = Instant::now();
     let mut total: f64 = 0.0;
@@ -131,10 +130,16 @@ fn main() {
                     let v = ((HEIGHT - row) as f32 + rng.sample(dist)) / HEIGHT as f32;
 
                     let ray = cam.get_ray(u, v);
-                    c = c + color(ray, &scene, &mut rng);
+                    c += color(ray, &scene, &mut rng);
                 }
 
-                *pixel = (c / SAMPLES as f32).to_rgb24();
+                c /= SAMPLES as f32;
+
+                // gamma 2 adjustment
+                c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
+
+                *pixel = c.to_rgb24();
+
             }
         }
 
