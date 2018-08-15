@@ -5,3 +5,5 @@ authors = ["Matt Rudder <matt@mattrudder.com>"]
 
 [dependencies]
 minifb = "0.10"
+rand = "0.5"
+rayon = "1.0"

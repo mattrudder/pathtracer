@@ -12,6 +12,15 @@ impl Vector3 {
     pub fn new(x: f32, y: f32, z: f32) -> Vector3 {
         Vector3 { e: [x, y, z] }
     }
+
+    pub fn one() -> Vector3 {
+        Vector3::new(1.0f32, 1.0f32, 1.0f32)
+    }
+
+    pub fn zero() -> Vector3 {
+        Vector3::new(0.0f32, 0.0f32, 0.0f32)
+    }
+
     pub fn x(&self) -> f32 { return self.e[0]; }
     pub fn y(&self) -> f32 { return self.e[1]; }
     pub fn z(&self) -> f32 { return self.e[2]; }
@@ -19,11 +28,11 @@ impl Vector3 {
     pub fn g(&self) -> f32 { return self.e[1]; }
     pub fn b(&self) -> f32 { return self.e[2]; }
 
-    pub fn length_squared(&self) -> f32 {
+    pub fn length_squared(self) -> f32 {
         self.e[0] * self.e[0] + self.e[1] * self.e[1] + self.e[2] * self.e[2]
     }
 
-    pub fn length(&self) -> f32 {
+    pub fn length(self) -> f32 {
         self.length_squared().sqrt()
     }
 
@@ -34,7 +43,7 @@ impl Vector3 {
         self.e[2] *= k;
     }
 
-    pub fn as_unit(&self) -> Vector3 {
+    pub fn as_unit(self) -> Vector3 {
         let k = 1.0 / self.length();
         Vector3::new(
             self.e[0] * k,
@@ -43,16 +52,27 @@ impl Vector3 {
         )
     }
 
-    pub fn dot(&self, rhs: &Vector3) -> f32 {
+    pub fn dot(self, rhs: Vector3) -> f32 {
         self.e[0] * rhs.e[0] + self.e[1] * rhs.e[1] + self.e[2] * rhs.e[2]
     }
 
-    pub fn cross(&self, rhs: &Vector3) -> Vector3 {
+    pub fn cross(self, rhs: Vector3) -> Vector3 {
         Vector3::new(
             self.e[1] * rhs.e[2] - self.e[2] * rhs.e[1],
             self.e[0] * rhs.e[2] - self.e[2] * rhs.e[0],
             self.e[0] * rhs.e[1] - self.e[1] * rhs.e[0]
         )
+    }
+
+    pub fn lerp(t: f32, lhs: Vector3, rhs: Vector3) -> Vector3 {
+        (1.0 - t) * lhs + t * rhs
+    }
+
+    pub fn to_rgb24(self) -> u32 {
+        let r = (self.r() * 255.99f32).trunc() as u32;
+        let g = (self.g() * 255.99f32).trunc() as u32;
+        let b = (self.b() * 255.99f32).trunc() as u32;
+        (r << 16) | (g << 8) | b
     }
 }
 
@@ -104,6 +124,18 @@ impl ops::Div<f32> for Vector3 {
     }
 }
 
+impl ops::Div<Vector3> for f32 {
+    type Output = Vector3;
+
+    fn div(self, rhs: Vector3) -> Vector3 {
+        Vector3::new(
+            self / rhs.e[0],
+            self / rhs.e[1],
+            self / rhs.e[2],
+        )
+    }
+}
+
 impl ops::Mul for Vector3 {
     type Output = Vector3;
 
@@ -124,6 +156,18 @@ impl ops::Mul<f32> for Vector3 {
             self.e[0] * rhs,
             self.e[1] * rhs,
             self.e[2] * rhs,
+        )
+    }
+}
+
+impl ops::Mul<Vector3> for f32 {
+    type Output = Vector3;
+
+    fn mul(self, rhs: Vector3) -> Vector3 {
+        Vector3::new(
+            self * rhs.e[0],
+            self * rhs.e[1],
+            self * rhs.e[2],
         )
     }
 }
