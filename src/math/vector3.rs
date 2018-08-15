@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::ops;
+use rand::{Rng, distributions::Uniform};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Vector3 {
@@ -19,6 +20,21 @@ impl Vector3 {
 
     pub fn zero() -> Vector3 {
         Vector3::new(0.0f32, 0.0f32, 0.0f32)
+    }
+
+    pub fn random<T: Rng>(rng: &mut T) -> Vector3 {
+        let uniform = Uniform::new(0.0f32, 1.0f32);
+        let mut result = None;
+        let one = Vector3::one();
+        while result.is_none() {
+            let r = Vector3::new(rng.sample(uniform), rng.sample(uniform), rng.sample(uniform));
+            let p = 2.0 * r - one;
+            if p.length_squared() < 1.0 {
+                result = Some(p)
+            }
+        }
+
+        result.unwrap()
     }
 
     pub fn x(&self) -> f32 { return self.e[0]; }

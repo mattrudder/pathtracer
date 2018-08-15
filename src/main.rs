@@ -9,8 +9,7 @@ use minifb::{Key, KeyRepeat, Window, WindowOptions, Scale};
 use math::*;
 use std::time::Instant;
 
-use rand::{XorShiftRng, Rng, SeedableRng};
-use rand::distributions::Uniform;
+use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
 
 
 const WIDTH: usize = 400;
@@ -73,9 +72,10 @@ impl RayHitable for Scene {
     }
 }
 
-fn color<T: RayHitable>(r: Ray, item: &T) -> Vector3 {
+fn color<T: RayHitable, R: Rng>(r: Ray, item: &T, rng: &mut R) -> Vector3 {
     if let Some(hit) = item.ray_hit(r, 0.0, std::f32::MAX) {
-        0.5 * Vector3::new(hit.normal.x() + 1.0, hit.normal.y() + 1.0, hit.normal.z() + 1.0)
+        let target = hit.point + hit.normal + Vector3::random(rng);
+        0.5 * color(Ray::new(hit.point, target - hit.point), item, rng)
     } else {
         let direction = r.direction.as_unit();
         let t = 0.5 * (direction.y() + 1.0);
@@ -103,6 +103,9 @@ fn main() {
 
     let cam = Camera::new();
 
+    let seed = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
+
+
     let mut last = Instant::now();
     let mut total: f64 = 0.0;
     let mut second: f64 = 0.0;
@@ -117,21 +120,18 @@ fn main() {
 
         window.set_title(&format!("PathTracer - Press ESC to exit [{}ms/f]", delta.subsec_millis()));
 
-        let seed = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
         let mut rng = XorShiftRng::from_seed(seed);
-        let uniform = Uniform::new(0.0f32, 1.0f32);
+        let dist = Uniform::new(0.0f32, 1.0f32);
 
         for (row, stride) in buffer.chunks_mut(WIDTH).enumerate() {
             for (col, pixel) in stride.iter_mut().enumerate() {
                 let mut c = Vector3::zero();
-                for sample in 0..SAMPLES {
-                    let u = (col as f32 + rng.sample(uniform)) / WIDTH as f32;
-                    let v = ((HEIGHT - row) as f32 + rng.sample(uniform)) / HEIGHT as f32;
+                for _ in 0..SAMPLES {
+                    let u = (col as f32 + rng.sample(dist)) / WIDTH as f32;
+                    let v = ((HEIGHT - row) as f32 + rng.sample(dist)) / HEIGHT as f32;
 
                     let ray = cam.get_ray(u, v);
-                    c = c + color(ray, &scene);
-
-
+                    c = c + color(ray, &scene, &mut rng);
                 }
 
                 *pixel = (c / SAMPLES as f32).to_rgb24();
