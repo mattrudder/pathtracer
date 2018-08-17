@@ -1,4 +1,5 @@
 use super::*;
+use std::f32;
 
 pub struct Sphere {
     pub center: Vector3,
@@ -11,8 +12,10 @@ impl Sphere {
     }
 }
 
-impl RayHitable for Sphere {
-    fn ray_hit(&self, r: Ray, t_min: f32, t_max: f32) -> Option<RayHit> {
+impl Collidable<Ray> for Sphere {
+    type Output = Option<RayHit>;
+
+    fn hit(&self, r: Ray) -> Option<RayHit> {
         let oc = r.origin - self.center;
         let a = r.direction.dot(r.direction);
         let b = oc.dot(r.direction);
@@ -25,13 +28,13 @@ impl RayHitable for Sphere {
 
         let d = (b.powi(2) - (a * c)).sqrt();
         let t = (-b - d) / a;
-        if t < t_max && t > t_min {
+        if t < f32::MAX && t > 0.001 {
             let point = r.point_at_parameter(t);
             let normal = (point - self.center) / self.radius;
             Some(RayHit { t, point, normal })
         } else {
             let t = (-b - d) / a;
-            if t < t_max && t > t_min {
+            if t < f32::MAX && t > 0.001 {
                 let point = r.point_at_parameter(t);
                 let normal = (point - self.center) / self.radius;
                 Some(RayHit { t, point, normal })

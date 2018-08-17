@@ -80,6 +80,10 @@ impl Vector3 {
         )
     }
 
+    pub fn reflect(self, normal: Vector3) -> Vector3 {
+        self - 2.0 * self.dot(normal) * normal
+    }
+
     pub fn lerp(t: f32, lhs: Vector3, rhs: Vector3) -> Vector3 {
         (1.0 - t) * lhs + t * rhs
     }

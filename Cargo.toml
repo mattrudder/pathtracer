@@ -7,3 +7,4 @@ authors = ["Matt Rudder <matt@mattrudder.com>"]
 minifb = "0.10"
 rand = "0.5"
 rayon = "1.0"
+lazy_static = "1.1.0"

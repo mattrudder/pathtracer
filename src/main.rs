@@ -2,35 +2,34 @@
 
 extern crate rand;
 extern crate minifb;
+#[macro_use]
+extern crate lazy_static;
 
+mod geometry;
 mod math;
+mod material;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions, Scale};
 use math::*;
+use geometry::*;
+use material::*;
 use std::time::Instant;
+use std::f32;
+use std::sync::Arc;
 
 use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
-
 
 const WIDTH: usize = 400;
 const HEIGHT: usize = 200;
 const SAMPLES: usize = 100;
-
-//fn hit_sphere(center: Vector3, radius: f32, r: Ray) -> bool {
-//    let oc = r.origin - center;
-//    let a = r.direction.dot(r.direction);
-//    let b = 2.0 * oc.dot(r.direction);
-//    let c = oc.dot(oc) - radius * radius;
-//    let discriminant = b * b - 4.0 * a * c;
-//    discriminant > 0.0
-//}
+const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
 
 struct Scene {
-    pub items: Vec<Box<dyn RayHitable>>,
+    pub items: Vec<Arc<dyn SceneItem<Output=Option<RayHit>>>>,
 }
 
 impl Scene {
-    pub fn new(items: Vec<Box<dyn RayHitable>>) -> Scene {
+    pub fn new(items: Vec<Arc<dyn SceneItem<Output=Option<RayHit>>>>) -> Scene {
         Scene { items }
     }
 }
@@ -57,14 +56,23 @@ impl Camera {
     }
 }
 
-impl RayHitable for Scene {
-    fn ray_hit(&self, r: Ray, t_min: f32, t_max: f32) -> Option<RayHit> {
-        let mut result: Option<RayHit> = None;
-        let mut t = t_max;
+struct SceneRayHit {
+    hit: RayHit,
+    item: Arc<SceneItem<Output=Option<RayHit>>>
+}
+
+impl Collidable<Ray> for Scene {
+    type Output = Option<SceneRayHit>;
+
+    fn hit(&self, r: Ray) -> Option<SceneRayHit> {
+        let mut result: Option<SceneRayHit> = None;
+        let mut t = f32::MAX;
         for item in self.items.iter() {
-            if let Some(hit) = item.ray_hit(r, t_min, t) {
-                t = hit.t;
-                result = Some(hit)
+            if let Some(hit) = item.hit(r) {
+                if hit.t < t {
+                    t = hit.t;
+                    result = Some(SceneRayHit { hit, item: item.clone() })
+                }
             }
         }
 
@@ -72,10 +80,24 @@ impl RayHitable for Scene {
     }
 }
 
-fn color<T: RayHitable, R: Rng>(r: Ray, item: &T, rng: &mut R) -> Vector3 {
-    if let Some(hit) = item.ray_hit(r, 0.001, std::f32::MAX) {
-        let target = hit.point + hit.normal + Vector3::random(rng);
-        0.5 * color(Ray::new(hit.point, target - hit.point), item, rng)
+impl SceneItem for Scene {
+    fn get_material(&self) -> Arc<dyn Material> {
+        Arc::new(Lambertian::new(Vector3::zero()))
+    }
+}
+
+fn color(r: Ray, scene: &Scene, depth: u32) -> Vector3 {
+    if let Some(hit) = scene.hit(r) {
+        if depth < 50 {
+            let material = hit.item.get_material();
+            if let Some(bounce) = material.scatter(r, hit.hit.point, hit.hit.normal) {
+                bounce.attenuation * color(bounce.bounced, scene, depth + 1)
+            } else {
+                Vector3::zero()
+            }
+        } else {
+            Vector3::zero()
+        }
     } else {
         let direction = r.direction.as_unit();
         let t = 0.5 * (direction.y() + 1.0);
@@ -94,16 +116,34 @@ fn main() {
                                     .. Default::default()
                                  }).unwrap_or_else(|e| { panic!("{}", e); });
 
-
-
     let scene = Scene::new(vec![
-        Box::new(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5)),
-        Box::new(Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0)),
+        Arc::new(
+            SphereGeometry::new(
+                Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5),
+                Arc::new(Lambertian::new(Vector3::new(0.8, 0.3, 0.3))),
+            )
+        ),
+        Arc::new(
+            SphereGeometry::new(
+                Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0),
+                Arc::new(Lambertian::new(Vector3::new(0.8, 0.8, 0.0))),
+            )
+        ),
+        Arc::new(
+            SphereGeometry::new(
+                Sphere::new(Vector3::new(1.0, 0.0, -1.0), 0.5),
+                Arc::new(Metallic::new(Vector3::new(0.8, 0.6, 0.2), 1.0)),
+            )
+        ),
+        Arc::new(
+            SphereGeometry::new(
+                Sphere::new(Vector3::new(-1.0, 0.0, -1.0), 0.5),
+                Arc::new(Metallic::new(Vector3::new(0.8, 0.8, 0.8), 0.3)),
+            )
+        ),
     ]);
 
     let cam = Camera::new();
-
-    let seed = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
 
     let mut last = Instant::now();
     let mut total: f64 = 0.0;
@@ -119,7 +159,7 @@ fn main() {
 
         window.set_title(&format!("PathTracer - Press ESC to exit [{}ms/f]", delta.subsec_millis()));
 
-        let mut rng = XorShiftRng::from_seed(seed);
+        let mut rng = XorShiftRng::from_seed(SEED);
         let dist = Uniform::new(0.0f32, 1.0f32);
 
         for (row, stride) in buffer.chunks_mut(WIDTH).enumerate() {
@@ -130,7 +170,7 @@ fn main() {
                     let v = ((HEIGHT - row) as f32 + rng.sample(dist)) / HEIGHT as f32;
 
                     let ray = cam.get_ray(u, v);
-                    c += color(ray, &scene, &mut rng);
+                    c += color(ray, &scene, 0);
                 }
 
                 c /= SAMPLES as f32;
@@ -139,7 +179,6 @@ fn main() {
                 c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
 
                 *pixel = c.to_rgb24();
-
             }
         }
 

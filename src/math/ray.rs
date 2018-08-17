@@ -23,6 +23,8 @@ pub struct RayHit {
     pub normal: Vector3,
 }
 
-pub trait RayHitable {
-    fn ray_hit(&self, r: Ray, t_min: f32, t_max: f32) -> Option<RayHit>;
+pub trait Collidable<TPrimitive> {
+    type Output;
+
+    fn hit(&self, r: TPrimitive) -> Self::Output;
 }
