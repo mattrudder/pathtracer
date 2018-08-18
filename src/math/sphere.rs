@@ -1,6 +1,7 @@
 use super::*;
 use std::f32;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Sphere {
     pub center: Vector3,
     pub radius: f32,
@@ -19,14 +20,14 @@ impl Collidable<Ray> for Sphere {
         let oc = r.origin - self.center;
         let a = r.direction.dot(r.direction);
         let b = oc.dot(r.direction);
-        let c = oc.dot(oc) - self.radius.powi(2);
+        let c = oc.dot(oc) - self.radius * self.radius;
 
         let discriminant = b.powi(2) - a * c;
         if discriminant < 0.0 {
             return None
         }
 
-        let d = (b.powi(2) - (a * c)).sqrt();
+        let d = (b * b - (a * c)).sqrt();
         let t = (-b - d) / a;
         if t < f32::MAX && t > 0.001 {
             let point = r.point_at_parameter(t);

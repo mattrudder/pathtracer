@@ -1,33 +1,35 @@
-use super::math::{Collidable, Sphere, RayHit, Ray};
-use super::material::Material;
+use super::{Collidable, Material, Sphere, SceneItem, RayHit, Ray};
 use std::sync::Arc;
 
-pub trait SceneItem: Collidable<Ray> {
-    fn get_material(&self) -> Arc<dyn Material>;
+#[derive(Debug, Clone, Copy)]
+pub enum Primitive {
+    Sphere(Sphere),
 }
 
-
-pub struct SphereGeometry {
-    pub sphere: Sphere,
-    pub material: Arc<dyn Material>,
+#[derive(Debug, Clone, Copy)]
+pub struct Geometry {
+    primitive: Primitive,
+    material: Material,
 }
 
-impl SphereGeometry {
-    pub fn new(sphere: Sphere, material: Arc<dyn Material>) -> SphereGeometry {
-        SphereGeometry { sphere, material }
+impl Geometry {
+    pub fn from_sphere(sphere: Sphere, material: Material) -> Geometry {
+        Geometry { primitive: Primitive::Sphere(sphere), material }
     }
 }
 
-impl Collidable<Ray> for SphereGeometry {
+impl Collidable<Ray> for Geometry {
     type Output = Option<RayHit>;
 
     fn hit(&self, r: Ray) -> Option<RayHit> {
-        self.sphere.hit(r)
+        match self.primitive {
+            Primitive::Sphere(sphere) => sphere.hit(r)
+        }
     }
 }
 
-impl SceneItem for SphereGeometry {
-    fn get_material(&self) -> Arc<dyn Material> {
-        self.material.clone()
+impl SceneItem for Geometry {
+    fn get_material(&self) -> Material {
+        self.material
     }
 }

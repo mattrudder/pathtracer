@@ -36,7 +36,7 @@ impl Vector3 {
         while result.is_none() {
             let r = Vector3::new(rng.sample(uniform), rng.sample(uniform), 0.0);
             let p = 2.0 * r - one;
-            if p.length_squared() < 1.0 {
+            if p.dot(p) < 1.0 {
                 result = Some(p)
             }
         }
@@ -111,7 +111,7 @@ impl Vector3 {
     pub fn refract(self, normal: Vector3, ni_over_nt: f32) -> Option<Vector3> {
         let unit = self.as_unit();
         let dt = unit.dot(normal);
-        let discriminant = 1.0 - ni_over_nt.powi(2) * (1.0 - dt.powi(2));
+        let discriminant = 1.0 - ni_over_nt * ni_over_nt * (1.0 - dt * dt);
         if discriminant > 0.0 {
             Some(ni_over_nt * (unit - normal * dt) - normal * discriminant.sqrt())
         } else {
