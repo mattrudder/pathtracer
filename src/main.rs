@@ -19,20 +19,10 @@ use std::sync::Arc;
 
 use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 200;
+const WIDTH: usize = 800;
+const HEIGHT: usize = 600;
 const SAMPLES: usize = 100;
 const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
-
-struct Scene {
-    pub items: Vec<Arc<dyn SceneItem<Output=Option<RayHit>>>>,
-}
-
-impl Scene {
-    pub fn new(items: Vec<Arc<dyn SceneItem<Output=Option<RayHit>>>>) -> Scene {
-        Scene { items }
-    }
-}
 
 struct Camera {
     lower_left_corner: Vector3,
@@ -42,12 +32,15 @@ struct Camera {
 }
 
 impl Camera {
-    pub fn new() -> Camera {
+    pub fn new(fov: f32, aspect: f32) -> Camera {
+        let theta = fov * f32::consts::PI / 180.0;
+        let half_height = (theta * 0.5).tan();
+        let half_width = aspect * half_height;
         Camera {
-            lower_left_corner: Vector3::new(-2.0, -1.0, -1.0),
-            horizontal: Vector3::new(4.0, 0.0, 0.0),
-            vertical: Vector3::new(0.0, 2.0, 0.0),
-            origin:  Vector3::zero(),
+            lower_left_corner: Vector3::new(-half_width, -half_height, -1.0),
+            horizontal: Vector3::new(2.0 * half_width, 0.0, 0.0),
+            vertical: Vector3::new(0.0, 2.0 * half_height, 0.0),
+            origin: Vector3::zero(),
         }
     }
 
@@ -55,6 +48,59 @@ impl Camera {
         Ray::new(self.origin, self.lower_left_corner + u * self.horizontal + v * self.vertical)
     }
 }
+
+struct Scene {
+    pub items: Vec<Arc<dyn SceneItem<Output=Option<RayHit>>>>,
+    pub camera: Camera,
+    pub is_dirty: bool,
+}
+
+impl Scene {
+    pub fn new(camera: Camera) -> Scene {
+        Scene { camera, items: vec![], is_dirty: true }
+    }
+
+    pub fn update(&mut self) {
+        self.is_dirty = true;
+    }
+
+    pub fn push<T: 'static + Sized + SceneItem<Output=Option<RayHit>>>(&mut self, item: T) {
+        self.items.push(Arc::new(item));
+        self.is_dirty = true;
+    }
+
+    pub fn render(&mut self, buffer: &mut [u32]) {
+        if !self.is_dirty {
+            return;
+        }
+
+        let mut rng = XorShiftRng::from_seed(SEED);
+        let dist = Uniform::new(0.0f32, 1.0f32);
+
+        for (row, stride) in buffer.chunks_mut(WIDTH).enumerate() {
+            for (col, pixel) in stride.iter_mut().enumerate() {
+                let mut c = Vector3::zero();
+                for _ in 0..SAMPLES {
+                    let u = (col as f32 + rng.sample(dist)) / WIDTH as f32;
+                    let v = ((HEIGHT - row) as f32 + rng.sample(dist)) / HEIGHT as f32;
+
+                    let ray = self.camera.get_ray(u, v);
+                    c += color(ray, self, 0);
+                }
+
+                c /= SAMPLES as f32;
+
+                // gamma 2 adjustment
+                c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
+
+                *pixel = c.to_rgb24();
+            }
+        }
+
+        self.is_dirty = false;
+    }
+}
+
 
 struct SceneRayHit {
     hit: RayHit,
@@ -105,6 +151,8 @@ fn color(r: Ray, scene: &Scene, depth: u32) -> Vector3 {
     }
 }
 
+
+
 fn main() {
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
@@ -112,38 +160,42 @@ fn main() {
                                  WIDTH,
                                  HEIGHT,
                                  WindowOptions {
-                                     scale: Scale::X2,
+//                                     scale: Scale::X2,
                                     .. Default::default()
                                  }).unwrap_or_else(|e| { panic!("{}", e); });
 
-    let scene = Scene::new(vec![
-        Arc::new(
-            SphereGeometry::new(
-                Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5),
-                Arc::new(Lambertian::new(Vector3::new(0.8, 0.3, 0.3))),
-            )
-        ),
-        Arc::new(
-            SphereGeometry::new(
-                Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0),
-                Arc::new(Lambertian::new(Vector3::new(0.8, 0.8, 0.0))),
-            )
-        ),
-        Arc::new(
-            SphereGeometry::new(
-                Sphere::new(Vector3::new(1.0, 0.0, -1.0), 0.5),
-                Arc::new(Metallic::new(Vector3::new(0.8, 0.6, 0.2), 1.0)),
-            )
-        ),
-        Arc::new(
-            SphereGeometry::new(
-                Sphere::new(Vector3::new(-1.0, 0.0, -1.0), 0.5),
-                Arc::new(Metallic::new(Vector3::new(0.8, 0.8, 0.8), 0.3)),
-            )
-        ),
-    ]);
+    let R: f32 = (f32::consts::PI * 0.25).cos();
+    let camera = Camera::new(90.0, WIDTH as f32 / HEIGHT as f32);
+    let mut scene = Scene::new(camera);
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5),
+//        Arc::new(Lambertian::new(Vector3::new(0.1, 0.2, 0.5))),
+//    ));
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0),
+//        Arc::new(Lambertian::new(Vector3::new(0.8, 0.8, 0.0))),
+//    ));
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(1.0, 0.0, -1.0), 0.5),
+//        Arc::new(Metallic::new(Vector3::new(0.8, 0.6, 0.2), 0.2)),
+//    ));
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(-1.0, 0.0, -1.0), 0.5),
+//        Arc::new(Dielectric::new(1.5)),
+//    ));
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(-1.0, 0.0, -1.0), -0.45),
+//        Arc::new(Dielectric::new(1.5)),
+//    ));
 
-    let cam = Camera::new();
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(-R, 0.0, -1.0), R),
+        Arc::new(Lambertian::new(Vector3::new(0.0, 0.0, 1.0))),
+    ));
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(R, 0.0, -1.0), R),
+        Arc::new(Lambertian::new(Vector3::new(1.0, 0.0, 0.0))),
+    ));
 
     let mut last = Instant::now();
     let mut total: f64 = 0.0;
@@ -159,28 +211,7 @@ fn main() {
 
         window.set_title(&format!("PathTracer - Press ESC to exit [{}ms/f]", delta.subsec_millis()));
 
-        let mut rng = XorShiftRng::from_seed(SEED);
-        let dist = Uniform::new(0.0f32, 1.0f32);
-
-        for (row, stride) in buffer.chunks_mut(WIDTH).enumerate() {
-            for (col, pixel) in stride.iter_mut().enumerate() {
-                let mut c = Vector3::zero();
-                for _ in 0..SAMPLES {
-                    let u = (col as f32 + rng.sample(dist)) / WIDTH as f32;
-                    let v = ((HEIGHT - row) as f32 + rng.sample(dist)) / HEIGHT as f32;
-
-                    let ray = cam.get_ray(u, v);
-                    c += color(ray, &scene, 0);
-                }
-
-                c /= SAMPLES as f32;
-
-                // gamma 2 adjustment
-                c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
-
-                *pixel = c.to_rgb24();
-            }
-        }
+        scene.render(&mut buffer);
 
         // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
         window.update_with_buffer(&buffer).unwrap();

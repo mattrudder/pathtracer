@@ -84,6 +84,17 @@ impl Vector3 {
         self - 2.0 * self.dot(normal) * normal
     }
 
+    pub fn refract(self, normal: Vector3, ni_over_nt: f32) -> Option<Vector3> {
+        let unit = self.as_unit();
+        let dt = unit.dot(normal);
+        let discriminant = 1.0 - ni_over_nt.powi(2) * (1.0 - dt.powi(2));
+        if discriminant > 0.0 {
+            Some(ni_over_nt * (unit - normal * dt) - normal * discriminant.sqrt())
+        } else {
+            None
+        }
+    }
+
     pub fn lerp(t: f32, lhs: Vector3, rhs: Vector3) -> Vector3 {
         (1.0 - t) * lhs + t * rhs
     }
@@ -93,6 +104,14 @@ impl Vector3 {
         let g = (self.g() * 255.99f32).trunc() as u32;
         let b = (self.b() * 255.99f32).trunc() as u32;
         (r << 16) | (g << 8) | b
+    }
+}
+
+impl ops::Neg for Vector3 {
+    type Output = Vector3;
+
+    fn neg(self) -> Vector3 {
+        Vector3::new(-self.e[0], -self.e[1], -self.e[2])
     }
 }
 
