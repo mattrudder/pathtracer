@@ -29,10 +29,14 @@ struct Camera {
     lower_left_corner: Vector3,
     horizontal: Vector3,
     vertical: Vector3,
+    lens_radius: f32,
+    x: Vector3,
+    y: Vector3,
+    z: Vector3,
 }
 
 impl Camera {
-    pub fn new(eye: Vector3, target: Vector3, up: Vector3, fov: f32, aspect: f32) -> Camera {
+    pub fn new(eye: Vector3, target: Vector3, up: Vector3, fov: f32, aspect: f32, aperture: f32, focus_dist: f32) -> Camera {
         let theta = fov * f32::consts::PI / 180.0;
         let half_height = (theta * 0.5).tan();
         let half_width = aspect * half_height;
@@ -43,14 +47,19 @@ impl Camera {
 
         Camera {
             eye,
-            lower_left_corner: eye - half_width * x - half_height * y - z,
-            horizontal: 2.0 * half_width * x,
-            vertical: 2.0 * half_height * y,
+            x, y, z,
+            lens_radius: aperture * 0.5,
+            lower_left_corner: eye - half_width * focus_dist * x - half_height * focus_dist * y - focus_dist * z,
+            horizontal: 2.0 * half_width * focus_dist * x,
+            vertical: 2.0 * half_height * focus_dist * y,
+
         }
     }
 
     pub fn get_ray(&self, u: f32, v: f32) -> Ray {
-        Ray::new(self.eye, self.lower_left_corner + u * self.horizontal + v * self.vertical - self.eye)
+        let rd = self.lens_radius * Vector3::random_unit_disk();
+        let offset = self.x * rd.x() + self.y * rd.y();
+        Ray::new(self.eye + offset, self.lower_left_corner + u * self.horizontal + v * self.vertical - self.eye - offset)
     }
 }
 
@@ -165,17 +174,22 @@ fn main() {
                                  WIDTH,
                                  HEIGHT,
                                  WindowOptions {
-                                     scale: Scale::X2,
+//                                     scale: Scale::X2,
                                     .. Default::default()
                                  }).unwrap_or_else(|e| { panic!("{}", e); });
 
-    let R: f32 = (f32::consts::PI * 0.25).cos();
+    let eye = Vector3::new(-2.0, 2.0, 1.0);
+    let look_at = Vector3::new(0.0, 0.0, -1.0);
+    let focus_dist = (eye - look_at).length();
+    let aperture = 0.0;
     let camera = Camera::new(
-        Vector3::new(-2.0, 2.0, 1.0),
-        Vector3::new(0.0, 0.0, -1.0),
+        eye,
+        look_at,
         Vector3::up(),
-        90.0,
-        WIDTH as f32 / HEIGHT as f32
+        60.0,
+        WIDTH as f32 / HEIGHT as f32,
+        aperture,
+        focus_dist,
     );
     let mut scene = Scene::new(camera);
     scene.push(SphereGeometry::new(
@@ -198,15 +212,6 @@ fn main() {
         Sphere::new(Vector3::new(-1.0, 0.0, -1.0), -0.45),
         Arc::new(Dielectric::new(1.5)),
     ));
-
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(-R, 0.0, -1.0), R),
-//        Arc::new(Lambertian::new(Vector3::new(0.0, 0.0, 1.0))),
-//    ));
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(R, 0.0, -1.0), R),
-//        Arc::new(Lambertian::new(Vector3::new(1.0, 0.0, 0.0))),
-//    ));
 
     let mut last = Instant::now();
     let mut total: f64 = 0.0;

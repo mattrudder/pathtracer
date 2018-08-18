@@ -30,8 +30,7 @@ impl Lambertian {
 
 impl Material for Lambertian {
     fn scatter(&self, r: Ray, point: Vector3, normal: Vector3) -> Option<Bounce> {
-        let mut rng = MATERIAL_RNG.lock().unwrap();
-        let target = point + normal + Vector3::random(&mut *rng);
+        let target = point + normal + Vector3::random_unit_sphere();
         let bounced = Ray::new(point, target - point);
         let attenuation = self.albedo;
         return Some(Bounce { attenuation, bounced })
@@ -55,9 +54,8 @@ impl Metallic {
 
 impl Material for Metallic {
     fn scatter(&self, r: Ray, point: Vector3, normal: Vector3) -> Option<Bounce> {
-        let mut rng = MATERIAL_RNG.lock().unwrap();
         let target = r.direction.as_unit().reflect(normal);
-        let bounced = Ray::new(point, target + self.roughness * Vector3::random(&mut *rng));
+        let bounced = Ray::new(point, target + self.roughness * Vector3::random_unit_sphere());
         let attenuation = self.albedo;
         if target.dot(normal) > 0.0 {
             Some(Bounce { attenuation, bounced })
