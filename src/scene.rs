@@ -87,26 +87,29 @@ impl Scene {
             let direction = r.direction.as_unit();
             let t = 0.5 * (direction.y() + 1.0);
             Vector3::lerp(t, Vector3::one(), Vector3::new(0.5, 0.7, 1.0))
-//            Vector3::new(1.0, 1.0, 1.0)
         }
     }
 
-    pub fn render(&mut self, width: usize, height: usize, buffer: Arc<Mutex<Vec<u32>>>) {//buffer: &mut [u32]) {
+    pub fn render(&mut self, width: usize, height: usize, buffer: Arc<Mutex<Vec<u32>>>) {
         if !self.is_dirty {
             return;
         }
 
         let dist = Uniform::new(0.0f32, 1.0f32);
 
+        let mut rng = XorShiftRng::from_seed(SEED);
+        let sample_offsets: Vec<(f32, f32)> = (0..SAMPLES).map(|i| (rng.sample(dist), rng.sample(dist))).collect();
+
         let rows: Vec<(usize, Arc<Mutex<Vec<u32>>>)> = (0..height).map(|r| (r, buffer.clone())).collect();
         rows.par_iter().for_each(|(row, data)| {
             let cols: Vec<(usize, Arc<Mutex<Vec<u32>>>)> = (0..width).map(|c| (c, buffer.clone())).collect();
             cols.par_iter().for_each(|(col, data)| {
-                let mut rng = XorShiftRng::from_seed(SEED);
+
                 let mut c = Vector3::zero();
-                for _ in 0..SAMPLES {
-                    let u = (*col as f32 + rng.sample(dist)) / width as f32;
-                    let v = ((height - row) as f32 + rng.sample(dist)) / height as f32;
+                for sample_index in 0..SAMPLES {
+                    let (s, t) = sample_offsets[sample_index];
+                    let u = (*col as f32 + s) / width as f32;
+                    let v = ((height - row) as f32 + t) / height as f32;
 
                     let ray = self.camera.get_ray(u, v);
                     c += Scene::color(ray, self, 0);
