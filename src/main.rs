@@ -19,33 +19,38 @@ use std::sync::Arc;
 
 use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
 
-const WIDTH: usize = 800;
-const HEIGHT: usize = 600;
+const WIDTH: usize = 400;
+const HEIGHT: usize = 200;
 const SAMPLES: usize = 100;
 const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
 
 struct Camera {
+    eye: Vector3,
     lower_left_corner: Vector3,
-    origin: Vector3,
     horizontal: Vector3,
     vertical: Vector3,
 }
 
 impl Camera {
-    pub fn new(fov: f32, aspect: f32) -> Camera {
+    pub fn new(eye: Vector3, target: Vector3, up: Vector3, fov: f32, aspect: f32) -> Camera {
         let theta = fov * f32::consts::PI / 180.0;
         let half_height = (theta * 0.5).tan();
         let half_width = aspect * half_height;
+
+        let z = (eye - target).as_unit();
+        let x = up.cross(z).as_unit();
+        let y = z.cross(x);
+
         Camera {
-            lower_left_corner: Vector3::new(-half_width, -half_height, -1.0),
-            horizontal: Vector3::new(2.0 * half_width, 0.0, 0.0),
-            vertical: Vector3::new(0.0, 2.0 * half_height, 0.0),
-            origin: Vector3::zero(),
+            eye,
+            lower_left_corner: eye - half_width * x - half_height * y - z,
+            horizontal: 2.0 * half_width * x,
+            vertical: 2.0 * half_height * y,
         }
     }
 
     pub fn get_ray(&self, u: f32, v: f32) -> Ray {
-        Ray::new(self.origin, self.lower_left_corner + u * self.horizontal + v * self.vertical)
+        Ray::new(self.eye, self.lower_left_corner + u * self.horizontal + v * self.vertical - self.eye)
     }
 }
 
@@ -160,42 +165,48 @@ fn main() {
                                  WIDTH,
                                  HEIGHT,
                                  WindowOptions {
-//                                     scale: Scale::X2,
+                                     scale: Scale::X2,
                                     .. Default::default()
                                  }).unwrap_or_else(|e| { panic!("{}", e); });
 
     let R: f32 = (f32::consts::PI * 0.25).cos();
-    let camera = Camera::new(90.0, WIDTH as f32 / HEIGHT as f32);
+    let camera = Camera::new(
+        Vector3::new(-2.0, 2.0, 1.0),
+        Vector3::new(0.0, 0.0, -1.0),
+        Vector3::up(),
+        90.0,
+        WIDTH as f32 / HEIGHT as f32
+    );
     let mut scene = Scene::new(camera);
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5),
-//        Arc::new(Lambertian::new(Vector3::new(0.1, 0.2, 0.5))),
-//    ));
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0),
-//        Arc::new(Lambertian::new(Vector3::new(0.8, 0.8, 0.0))),
-//    ));
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(1.0, 0.0, -1.0), 0.5),
-//        Arc::new(Metallic::new(Vector3::new(0.8, 0.6, 0.2), 0.2)),
-//    ));
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(-1.0, 0.0, -1.0), 0.5),
-//        Arc::new(Dielectric::new(1.5)),
-//    ));
-//    scene.push(SphereGeometry::new(
-//        Sphere::new(Vector3::new(-1.0, 0.0, -1.0), -0.45),
-//        Arc::new(Dielectric::new(1.5)),
-//    ));
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5),
+        Arc::new(Lambertian::new(Vector3::new(0.1, 0.2, 0.5))),
+    ));
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0),
+        Arc::new(Lambertian::new(Vector3::new(0.8, 0.8, 0.0))),
+    ));
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(1.0, 0.0, -1.0), 0.5),
+        Arc::new(Metallic::new(Vector3::new(0.8, 0.6, 0.2), 0.2)),
+    ));
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(-1.0, 0.0, -1.0), 0.5),
+        Arc::new(Dielectric::new(1.5)),
+    ));
+    scene.push(SphereGeometry::new(
+        Sphere::new(Vector3::new(-1.0, 0.0, -1.0), -0.45),
+        Arc::new(Dielectric::new(1.5)),
+    ));
 
-    scene.push(SphereGeometry::new(
-        Sphere::new(Vector3::new(-R, 0.0, -1.0), R),
-        Arc::new(Lambertian::new(Vector3::new(0.0, 0.0, 1.0))),
-    ));
-    scene.push(SphereGeometry::new(
-        Sphere::new(Vector3::new(R, 0.0, -1.0), R),
-        Arc::new(Lambertian::new(Vector3::new(1.0, 0.0, 0.0))),
-    ));
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(-R, 0.0, -1.0), R),
+//        Arc::new(Lambertian::new(Vector3::new(0.0, 0.0, 1.0))),
+//    ));
+//    scene.push(SphereGeometry::new(
+//        Sphere::new(Vector3::new(R, 0.0, -1.0), R),
+//        Arc::new(Lambertian::new(Vector3::new(1.0, 0.0, 0.0))),
+//    ));
 
     let mut last = Instant::now();
     let mut total: f64 = 0.0;

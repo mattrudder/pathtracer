@@ -14,13 +14,12 @@ impl Vector3 {
         Vector3 { e: [x, y, z] }
     }
 
-    pub fn one() -> Vector3 {
-        Vector3::new(1.0f32, 1.0f32, 1.0f32)
-    }
+    pub fn up() -> Vector3 { Vector3::new(0.0, 1.0, 0.0) }
+    pub fn right() -> Vector3 { Vector3::new(1.0, 0.0, 0.0) }
+    pub fn forward() -> Vector3 { Vector3::new(0.0, 0.0, 1.0) }
 
-    pub fn zero() -> Vector3 {
-        Vector3::new(0.0f32, 0.0f32, 0.0f32)
-    }
+    pub fn one() -> Vector3 { Vector3::new(1.0, 1.0, 1.0) }
+    pub fn zero() -> Vector3 { Vector3::new(0.0, 0.0, 0.0) }
 
     pub fn random<T: Rng>(rng: &mut T) -> Vector3 {
         let uniform = Uniform::new(0.0f32, 1.0f32);
@@ -75,7 +74,7 @@ impl Vector3 {
     pub fn cross(self, rhs: Vector3) -> Vector3 {
         Vector3::new(
             self.e[1] * rhs.e[2] - self.e[2] * rhs.e[1],
-            self.e[0] * rhs.e[2] - self.e[2] * rhs.e[0],
+            -(self.e[0] * rhs.e[2] - self.e[2] * rhs.e[0]),
             self.e[0] * rhs.e[1] - self.e[1] * rhs.e[0]
         )
     }
