@@ -14,7 +14,6 @@ pub trait SceneItem: Collidable<Ray> {
 #[derive(Clone)]
 pub struct Scene {
     pub items: Vec<Geometry>,
-    pub camera: Camera,
     pub is_dirty: bool,
 }
 
@@ -25,11 +24,11 @@ pub struct SceneRenderUpdate {
 
 impl Scene {
     #[allow(dead_code)]
-    pub fn new(camera: Camera, items: Vec<Geometry>) -> Scene {
-        Scene { camera, items, is_dirty: true }
+    pub fn new(items: Vec<Geometry>) -> Scene {
+        Scene { items, is_dirty: true }
     }
 
-    pub fn random(camera: Camera) -> Scene {
+    pub fn random() -> Scene {
         let mut items = vec![];
 
         let mut rng = XorShiftRng::from_seed(SEED);
@@ -74,7 +73,7 @@ impl Scene {
             Material::metal(Vector3::new(0.7, 0.6, 0.5), 0.1)
         ));
 
-        Scene { camera, items, is_dirty: true }
+        Scene { items, is_dirty: true }
     }
 
     fn color(r: Ray, scene: &Scene, depth: u32) -> Vector3 {
@@ -96,23 +95,21 @@ impl Scene {
         }
     }
 
-    pub fn render(&self, width: usize, height: usize, pool: &ThreadPool, tx: Sender<SceneRenderUpdate>) {
+    pub fn render(&self, camera: Camera, width: usize, height: usize, pool: &ThreadPool, tx: Sender<SceneRenderUpdate>) {
         let dist = Uniform::new(0.0f32, 1.0f32);
 
         for row in 0..height {
             let tx = tx.clone();
             let scene = self.clone();
+            let camera = camera.clone();
             pool.execute(move || for col in 0..width {
                 let mut c = Vector3::zero();
                 let mut rng = XorShiftRng::from_seed(SEED);
-                let offsets: Vec<(f32, f32)> = (0..SAMPLES).map(|_| (rng.sample(dist), rng.sample(dist))).collect();
+                for _ in 0..SAMPLES {
+                    let u = (col as f32 + rng.sample(dist)) / width as f32;
+                    let v = ((height - row) as f32 + rng.sample(dist)) / height as f32;
 
-                for sample_index in 0..SAMPLES {
-                    let (s, t) = offsets[sample_index];
-                    let u = (col as f32 + s) / width as f32;
-                    let v = ((height - row) as f32 + t) / height as f32;
-
-                    let ray = scene.camera.get_ray(u, v);
+                    let ray = camera.get_ray(u, v);
                     c += Scene::color(ray, &scene, 0);
                 }
 
