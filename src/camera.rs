@@ -1,6 +1,7 @@
 use super::{Ray, Vector3};
 use std::f32;
 
+#[derive(Copy, Clone, Debug)]
 pub struct Camera {
     eye: Vector3,
     lower_left_corner: Vector3,

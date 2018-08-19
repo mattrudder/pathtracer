@@ -4,7 +4,8 @@ extern crate rand;
 extern crate minifb;
 #[macro_use]
 extern crate lazy_static;
-extern crate rayon;
+extern crate threadpool;
+extern crate num_cpus;
 
 mod camera;
 mod geometry;
@@ -25,6 +26,8 @@ use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
 use minifb::{Key, KeyRepeat, Window, WindowOptions, Scale};
 use std::sync::Mutex;
 use std::thread;
+use std::sync::mpsc::channel;
+use threadpool::ThreadPool;
 
 const WIDTH: usize = 400;
 const HEIGHT: usize = 300;
@@ -53,24 +56,22 @@ fn main() {
         focus_dist,
     );
 
-    let mut scene = Scene::random(camera);
-    let data = Arc::new(Mutex::new(buffer));
-
-    let data2 = data.clone();
-    let handle = thread::spawn(move || scene.render(WIDTH, HEIGHT, data2));
-
-    let mut last = Instant::now();
+    let (tx, rx) = channel();
+    let scene = Scene::random(camera);
+    let pool = ThreadPool::new(num_cpus::get());
+    scene.render(WIDTH, HEIGHT, &pool, tx);
+    
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        let current = Instant::now();
-        let delta = current.duration_since(last);
-        last = current;
-
         window.set_title(&format!("PathTracer - Press ESC to exit"));
 
         // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
-        let buffer = data.lock().unwrap();
         window.update_with_buffer(&buffer).unwrap();
+
+        while let Ok(data) = rx.try_recv() {
+            buffer[data.index] = data.value
+        }
     }
 
-    handle.join().unwrap();
+    drop(rx);
+    pool.join();
 }

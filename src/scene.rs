@@ -1,9 +1,8 @@
 use super::{Camera, Collidable, Geometry, Material, Ray, RayHit, Sphere, Vector3};
 use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
-use rayon::prelude::*;
 use std::f32;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::mpsc::Sender;
+use threadpool::ThreadPool;
 
 const SAMPLES: usize = 100;
 const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
@@ -12,13 +11,20 @@ pub trait SceneItem: Collidable<Ray> {
     fn get_material(&self) -> Material;
 }
 
+#[derive(Clone)]
 pub struct Scene {
     pub items: Vec<Geometry>,
     pub camera: Camera,
     pub is_dirty: bool,
 }
 
+pub struct SceneRenderUpdate {
+    pub index: usize,
+    pub value: u32,
+}
+
 impl Scene {
+    #[allow(dead_code)]
     pub fn new(camera: Camera, items: Vec<Geometry>) -> Scene {
         Scene { camera, items, is_dirty: true }
     }
@@ -90,29 +96,24 @@ impl Scene {
         }
     }
 
-    pub fn render(&mut self, width: usize, height: usize, buffer: Arc<Mutex<Vec<u32>>>) {
-        if !self.is_dirty {
-            return;
-        }
-
+    pub fn render(&self, width: usize, height: usize, pool: &ThreadPool, tx: Sender<SceneRenderUpdate>) {
         let dist = Uniform::new(0.0f32, 1.0f32);
 
-        let mut rng = XorShiftRng::from_seed(SEED);
-        let sample_offsets: Vec<(f32, f32)> = (0..SAMPLES).map(|i| (rng.sample(dist), rng.sample(dist))).collect();
-
-        let rows: Vec<(usize, Arc<Mutex<Vec<u32>>>)> = (0..height).map(|r| (r, buffer.clone())).collect();
-        rows.par_iter().for_each(|(row, data)| {
-            let cols: Vec<(usize, Arc<Mutex<Vec<u32>>>)> = (0..width).map(|c| (c, buffer.clone())).collect();
-            cols.par_iter().for_each(|(col, data)| {
-
+        for row in 0..height {
+            let tx = tx.clone();
+            let scene = self.clone();
+            pool.execute(move || for col in 0..width {
                 let mut c = Vector3::zero();
+                let mut rng = XorShiftRng::from_seed(SEED);
+                let offsets: Vec<(f32, f32)> = (0..SAMPLES).map(|_| (rng.sample(dist), rng.sample(dist))).collect();
+
                 for sample_index in 0..SAMPLES {
-                    let (s, t) = sample_offsets[sample_index];
-                    let u = (*col as f32 + s) / width as f32;
+                    let (s, t) = offsets[sample_index];
+                    let u = (col as f32 + s) / width as f32;
                     let v = ((height - row) as f32 + t) / height as f32;
 
-                    let ray = self.camera.get_ray(u, v);
-                    c += Scene::color(ray, self, 0);
+                    let ray = scene.camera.get_ray(u, v);
+                    c += Scene::color(ray, &scene, 0);
                 }
 
                 c /= SAMPLES as f32;
@@ -120,12 +121,12 @@ impl Scene {
                 // gamma 2 adjustment
                 c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
 
-                let mut data = data.lock().unwrap();
-                data[row * width + col] = c.to_rgb24();
+                // Assume failures sending means that the client has aborted.
+                if let Err(_) = tx.send(SceneRenderUpdate { index: row * width + col, value: c.to_rgb24() }) {
+                    break;
+                }
             });
-        });
-
-        self.is_dirty = false;
+        }
     }
 }
 
