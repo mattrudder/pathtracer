@@ -3,6 +3,7 @@ use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
 use std::f32;
 use std::sync::mpsc::Sender;
 use threadpool::ThreadPool;
+use std::time::{Instant, Duration};
 
 const SAMPLES: usize = 1000;
 const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
@@ -17,9 +18,13 @@ pub struct Scene {
     pub is_dirty: bool,
 }
 
-pub struct SceneRenderUpdate {
-    pub index: usize,
-    pub value: u32,
+pub enum SceneRenderUpdate {
+    BeginRender(usize),
+    PutPixel {
+        index: usize,
+        value: u32,
+    },
+    ChunkComplete
 }
 
 impl Scene {
@@ -99,6 +104,7 @@ impl Scene {
         let dist = Uniform::new(0.0f32, 1.0f32);
 
         let chunk_size = height / pool.max_count();
+        tx.send(SceneRenderUpdate::BeginRender(chunk_size + 1)).unwrap();
         for row_chunk in 0..=chunk_size {
             let tx = tx.clone();
             let scene = self.clone();
@@ -125,11 +131,13 @@ impl Scene {
                         c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
 
                         // Assume failures sending means that the client has aborted.
-                        if let Err(_) = tx.send(SceneRenderUpdate { index: row * width + col, value: c.to_rgb24() }) {
+                        if let Err(_) = tx.send(SceneRenderUpdate::PutPixel { index: row * width + col, value: c.to_rgb24() }) {
                             break;
                         }
                     }
                 }
+
+                tx.send(SceneRenderUpdate::ChunkComplete).unwrap();
             });
         }
     }

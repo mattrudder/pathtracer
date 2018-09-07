@@ -66,7 +66,9 @@ fn main() {
         Scale::FitScreen => return,
     };
 
-
+    let start = Instant::now();
+    let mut pending_chunks = 0;
+    let mut rendering = false;
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let (w, h) = window.get_size();
         let w = w / scale_factor;
@@ -74,7 +76,7 @@ fn main() {
         // get_unscaled_size(&window);
         let pixels = w * h;
         if pixels != buffer.len() {
-            window.set_title(&format!("PathTracer ({}x{}) - Rendering...", w, h));
+            window.set_title(&format!("PathTracer ({}x{})", w, h));
             drop(scene_chan.1);
             scene_chan = channel();
 
@@ -93,12 +95,30 @@ fn main() {
             scene.render(camera, w, h, &pool, scene_chan.0);
         }
 
-        if let Ok(data) = scene_chan.1.try_recv() {
-            buffer[data.index] = data.value;
-        } else {
-            window.set_title(&format!("PathTracer ({}x{})", w, h));
+        match scene_chan.1.try_recv() {
+            Ok(SceneRenderUpdate::PutPixel { index, value }) => buffer[index] = value,
+            Ok(SceneRenderUpdate::BeginRender(count)) => {
+                rendering = true;
+                pending_chunks = count;
+            },
+            Ok(SceneRenderUpdate::ChunkComplete) => {
+                pending_chunks -= 1;
+                if pending_chunks <= 0 {
+                    rendering = false;
+                    let delta = Instant::now() - start;
+                    let seconds = delta.as_secs() as f64 + (delta.subsec_millis() as f64 / 1000.0);
+                    window.set_title(&format!("PathTracer ({}x{}) {:.2}s", w, h, seconds));
+                }
+            },
+            _ => ()
         }
 
+
+        if rendering {
+            let delta = Instant::now() - start;
+            let seconds = delta.as_secs() as f64 + (delta.subsec_millis() as f64 / 1000.0);
+            window.set_title(&format!("PathTracer ({}x{}) {:.2}s elapsed", w, h, seconds));
+        }
         // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
         window.update_with_buffer(&buffer).unwrap();
     }
