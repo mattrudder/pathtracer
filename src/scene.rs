@@ -4,7 +4,7 @@ use std::f32;
 use std::sync::mpsc::Sender;
 use threadpool::ThreadPool;
 
-const SAMPLES: usize = 100;
+const SAMPLES: usize = 1000;
 const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
 
 pub trait SceneItem: Collidable<Ray> {
@@ -98,29 +98,37 @@ impl Scene {
     pub fn render(&self, camera: Camera, width: usize, height: usize, pool: &ThreadPool, tx: Sender<SceneRenderUpdate>) {
         let dist = Uniform::new(0.0f32, 1.0f32);
 
-        for row in 0..height {
+        let chunk_size = height / pool.max_count();
+        for row_chunk in 0..=chunk_size {
             let tx = tx.clone();
             let scene = self.clone();
             let camera = camera.clone();
-            pool.execute(move || for col in 0..width {
-                let mut c = Vector3::zero();
-                let mut rng = XorShiftRng::from_seed(SEED);
-                for _ in 0..SAMPLES {
-                    let u = (col as f32 + rng.sample(dist)) / width as f32;
-                    let v = ((height - row) as f32 + rng.sample(dist)) / height as f32;
+            pool.execute(move || {
+                let chunk_start = row_chunk * chunk_size;
+                let chunk_end = ((row_chunk + 1) * chunk_size).min(height);
 
-                    let ray = camera.get_ray(u, v);
-                    c += Scene::color(ray, &scene, 0);
-                }
+                for row in chunk_start..chunk_end {
+                    for col in 0..width {
+                        let mut c = Vector3::zero();
+                        let mut rng = XorShiftRng::from_seed(SEED);
+                        for _ in 0..SAMPLES {
+                            let u = (col as f32 + rng.sample(dist)) / width as f32;
+                            let v = ((height - row) as f32 + rng.sample(dist)) / height as f32;
 
-                c /= SAMPLES as f32;
+                            let ray = camera.get_ray(u, v);
+                            c += Scene::color(ray, &scene, 0);
+                        }
 
-                // gamma 2 adjustment
-                c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
+                        c /= SAMPLES as f32;
 
-                // Assume failures sending means that the client has aborted.
-                if let Err(_) = tx.send(SceneRenderUpdate { index: row * width + col, value: c.to_rgb24() }) {
-                    break;
+                        // gamma 2 adjustment
+                        c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
+
+                        // Assume failures sending means that the client has aborted.
+                        if let Err(_) = tx.send(SceneRenderUpdate { index: row * width + col, value: c.to_rgb24() }) {
+                            break;
+                        }
+                    }
                 }
             });
         }
