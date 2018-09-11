@@ -2,10 +2,10 @@ use super::{Camera, Collidable, Geometry, Material, Ray, RayHit, Sphere, Vector3
 use rand::{XorShiftRng, Rng, SeedableRng, distributions::Uniform};
 use std::f32;
 use std::sync::mpsc::Sender;
-use threadpool::ThreadPool;
 use std::time::{Instant, Duration};
+use rayon::prelude::*;
 
-const SAMPLES: usize = 1000;
+const SAMPLES: usize = 100;
 const SEED: [u8; 16] = [1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,16];
 
 pub trait SceneItem: Collidable<Ray> {
@@ -16,15 +16,6 @@ pub trait SceneItem: Collidable<Ray> {
 pub struct Scene {
     pub items: Vec<Geometry>,
     pub is_dirty: bool,
-}
-
-pub enum SceneRenderUpdate {
-    BeginRender(usize),
-    PutPixel {
-        index: usize,
-        value: u32,
-    },
-    ChunkComplete
 }
 
 impl Scene {
@@ -100,46 +91,35 @@ impl Scene {
         }
     }
 
-    pub fn render(&self, camera: Camera, width: usize, height: usize, pool: &ThreadPool, tx: Sender<SceneRenderUpdate>) {
+    pub fn render(&self, camera: Camera, width: usize, height: usize) -> Vec<u32> {
         let dist = Uniform::new(0.0f32, 1.0f32);
 
-        let chunk_size = height / pool.max_count();
-        tx.send(SceneRenderUpdate::BeginRender(chunk_size + 1)).unwrap();
-        for row_chunk in 0..=chunk_size {
-            let tx = tx.clone();
-            let scene = self.clone();
-            let camera = camera.clone();
-            pool.execute(move || {
-                let chunk_start = row_chunk * chunk_size;
-                let chunk_end = ((row_chunk + 1) * chunk_size).min(height);
+        let mut buffer = vec![0; width * height];
+        buffer
+            .par_chunks_mut(width)
+            .enumerate()
+            .for_each(|(row, line)| {
+                for col in 0..width {
+                    let mut c = Vector3::zero();
+                    let mut rng = XorShiftRng::from_seed(SEED);
+                    for _ in 0..SAMPLES {
+                        let u = (col as f32 + rng.sample(dist)) / width as f32;
+                        let v = ((height - row) as f32 + rng.sample(dist)) / height as f32;
 
-                for row in chunk_start..chunk_end {
-                    for col in 0..width {
-                        let mut c = Vector3::zero();
-                        let mut rng = XorShiftRng::from_seed(SEED);
-                        for _ in 0..SAMPLES {
-                            let u = (col as f32 + rng.sample(dist)) / width as f32;
-                            let v = ((height - row) as f32 + rng.sample(dist)) / height as f32;
-
-                            let ray = camera.get_ray(u, v);
-                            c += Scene::color(ray, &scene, 0);
-                        }
-
-                        c /= SAMPLES as f32;
-
-                        // gamma 2 adjustment
-                        c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
-
-                        // Assume failures sending means that the client has aborted.
-                        if let Err(_) = tx.send(SceneRenderUpdate::PutPixel { index: row * width + col, value: c.to_rgb24() }) {
-                            break;
-                        }
+                        let ray = camera.get_ray(u, v);
+                        c += Scene::color(ray, &self, 0);
                     }
-                }
 
-                tx.send(SceneRenderUpdate::ChunkComplete).unwrap();
+                    c /= SAMPLES as f32;
+
+                    // gamma 2 adjustment
+                    c = Vector3::new(c.r().sqrt(), c.g().sqrt(), c.b().sqrt());
+
+                    line[col] = c.to_rgb24();
+                }
             });
-        }
+
+        return buffer;
     }
 }
 
