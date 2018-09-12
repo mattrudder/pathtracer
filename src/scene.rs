@@ -1,10 +1,6 @@
 use super::{Camera, Collidable, Geometry, Material, Ray, RayHit, Sphere, Vector3};
 
-use std::{
-  f32,
-  sync::mpsc::Sender,
-  time::{Duration, Instant},
-};
+use std::f32;
 
 use rand::{distributions::Uniform, Rng, SeedableRng, XorShiftRng};
 use rayon::prelude::*;

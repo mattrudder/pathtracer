@@ -1,7 +1,5 @@
 use super::{Collidable, Material, Ray, RayHit, SceneItem, Sphere};
 
-use std::sync::Arc;
-
 #[derive(Debug, Clone, Copy)]
 pub enum Primitive {
   Sphere(Sphere),

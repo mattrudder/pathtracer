@@ -1,10 +1,10 @@
-#![allow(unused_imports)]
-
-extern crate minifb;
-extern crate rand;
 #[macro_use]
 extern crate lazy_static;
+extern crate minifb;
+extern crate rand;
 extern crate rayon;
+#[macro_use]
+extern crate structopt;
 
 mod camera;
 mod geometry;
@@ -20,28 +20,41 @@ use scene::*;
 
 use std::{
   f32,
-  sync::{
-    mpsc::{channel, Receiver},
-    Arc, Mutex,
-  },
+  sync::mpsc::{channel, Receiver},
   thread,
   time::Instant,
 };
 
-use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
-use rand::{distributions::Uniform, Rng, SeedableRng, XorShiftRng};
+use minifb::{Key, Scale, Window, WindowOptions};
+use structopt::StructOpt;
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 300;
-const SAMPLES_PER_PIXEL: usize = 10;
 const SCALE: Scale = Scale::X1;
 
+#[derive(StructOpt, Debug)]
+#[structopt(name = "PathTracer", about = "A simple ray tracer.")]
+struct Args {
+  /// Sets the width of the final rendered image.
+  #[structopt(short = "w", long = "width", default_value="400")]
+  width: usize,
+  /// Sets the height of the final rendered image.
+  #[structopt(short = "h", long = "height", default_value="300")]
+  height: usize,
+  /// Sets the count of samples taken per pixel.
+  #[structopt(short = "s", long = "samples", default_value="100")]
+  samples: usize,
+}
+
 fn main() {
+  let args = Args::from_args();
+  let width = args.width;
+  let height = args.height;
+  let samples = args.samples;
+
   let mut buffer: Vec<u32> = vec![0; 0];
   let mut window = Window::new(
-    "PathTracer - Press ESC to exit",
-    WIDTH,
-    HEIGHT,
+    "PathTracer",
+    width,
+    height,
     WindowOptions {
       resize: true,
       scale: SCALE,
@@ -94,7 +107,7 @@ fn main() {
       let scene_copy = scene.clone();
       let (tx, rx) = channel();
       let handle = thread::spawn(move || {
-        let buffer = scene_copy.render(camera, w, h, SAMPLES_PER_PIXEL);
+        let buffer = scene_copy.render(camera, w, h, samples);
         tx.send(buffer).unwrap();
         println!("Render completed!");
       });
@@ -113,7 +126,7 @@ fn main() {
       let seconds = delta.as_secs() as f64 + (delta.subsec_millis() as f64 / 1000.0);
       window.set_title(&format!(
         "PathTracer - {}x{} - {}SPP - {:.2}s",
-        w, h, SAMPLES_PER_PIXEL, seconds
+        w, h, samples, seconds
       ));
     }
 
