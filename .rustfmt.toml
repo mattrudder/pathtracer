@@ -1,0 +1,15 @@
+unstable_features = true
+force_multiline_blocks = true
+indent_style = "Block"
+match_block_trailing_comma = true
+merge_derives = true
+merge_imports = true
+reorder_imports = true
+reorder_modules = true
+reorder_impl_items = true
+report_todo = "Unnumbered"
+report_fixme = "Unnumbered"
+tab_spaces = 2
+use_field_init_shorthand = true
+use_try_shorthand = true
+wrap_comments = true
